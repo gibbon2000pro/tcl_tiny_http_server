@@ -8,7 +8,3 @@
 2. 方便投递个人简历。（只需要发送链接 http://124.70.193.25:8888/gibbon 即可）
 
 3. 解密挑战，“Rita同学的属相是什么？”
-
-curl -v -d @script1.tcl "http://localhost:8888"
-
-cat script1.tcl | curl -v -X POST --data-binary @- "http://localhost:8888/"
