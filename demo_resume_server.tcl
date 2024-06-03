@@ -2,7 +2,7 @@
 
 source ./tcl_http_server.tcl
 
-set server [HttpServer new 8888]
+set server [HttpServer new 8080]
 $server set_handler "/gibbon" {{conn method uri query headers body} {
     reply_file $conn {resume/贺渊凌1.pdf}
 }} {} 1 3 30
