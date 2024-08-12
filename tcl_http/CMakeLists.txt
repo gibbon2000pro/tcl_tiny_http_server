@@ -1,5 +1,7 @@
 project(tcl_http)
 
+set(CMAKE_BUILD_TYPE "Debug")
+
 add_library(tclhttp SHARED
     mongoose.c
     tcl_http.cpp

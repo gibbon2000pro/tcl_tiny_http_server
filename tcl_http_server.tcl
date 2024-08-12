@@ -91,13 +91,13 @@ package require Thread
     }
 
     method handle_req {s conn method uri query headers body} {
-        # puts "server:   $server"
-        # puts "conn:     $conn"
-        # puts "method:   $method"
-        # puts "uri:      $uri"
-        # puts "query:    $query"
-        # puts "headers:  $headers"
-        # puts "body:     $body"
+        puts "server:   $server"
+        puts "conn:     $conn"
+        puts "method:   $method"
+        puts "uri:      $uri"
+        puts "query:    $query"
+        puts "headers:  $headers"
+        puts "body:     $body"
         foreach handler $handlers {
             lassign $handler pattern func pool
             if [string match -nocase $pattern $uri] {

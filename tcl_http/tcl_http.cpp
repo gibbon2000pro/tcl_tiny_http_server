@@ -1,24 +1,22 @@
-#include "mongoose.h"
+#include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <iostream>
-#include <memory>
 
-extern "C"
-{
+#include "mongoose.h"
+
+extern "C" {
 #include <tcl8.6/tcl.h>
-    extern DLLEXPORT int Tclhttp_Init(Tcl_Interp *interp);
+extern DLLEXPORT int Tclhttp_Init(Tcl_Interp *interp);
 }
 
-struct ReqContext
-{
+struct ReqContext {
     mg_connection *conn;
     mg_http_message *hm;
 };
 
-struct HttpServer
-{
+struct HttpServer {
     std::string name;
     mg_mgr mgr;
     Tcl_Interp *interp;
@@ -27,42 +25,34 @@ struct HttpServer
 
     HttpServer(Tcl_Interp *interp_)
         : interp(interp_),
-          handler(nullptr)
-    {
+          handler(nullptr) {
         mg_mgr_init(&mgr);
     }
 
-    ~HttpServer()
-    {
+    ~HttpServer() {
         mg_mgr_free(&mgr);
-        if (handler)
-        {
+        if (handler) {
             Tcl_DecrRefCount(handler);
             handler = nullptr;
         }
     }
 
-    mg_connection *listen(int port)
-    {
+    mg_connection *listen(int port) {
         std::string listenStr = "http://0.0.0.0:" + std::to_string(port);
         return mg_http_listen(&mgr, listenStr.c_str(), &HttpServer::event_handler, this);
     }
 
-    void set_handler(Tcl_Obj *handler_)
-    {
-        if (handler)
-        {
+    void set_handler(Tcl_Obj *handler_) {
+        if (handler) {
             Tcl_DecrRefCount(handler);
         }
         handler = handler_;
         Tcl_IncrRefCount(handler);
     }
 
-    void reply(unsigned long connId, int code, Tcl_Obj *headers, Tcl_Obj *body)
-    {
+    void reply(unsigned long connId, int code, Tcl_Obj *headers, Tcl_Obj *body) {
         auto find = connections.find(connId);
-        if (find == connections.end())
-        {
+        if (find == connections.end()) {
             return;
         }
         ReqContext &ctx = find->second;
@@ -71,13 +61,11 @@ struct HttpServer
         Tcl_DictSearch search;
         Tcl_Obj *key, *value;
         int done;
-        if (Tcl_DictObjFirst(interp, headers, &search, &key, &value, &done) != TCL_OK)
-        {
+        if (Tcl_DictObjFirst(interp, headers, &search, &key, &value, &done) != TCL_OK) {
             mg_http_reply(ctx.conn, 500, nullptr, "");
             return;
         }
-        for (; !done; Tcl_DictObjNext(&search, &key, &value, &done))
-        {
+        for (; !done; Tcl_DictObjNext(&search, &key, &value, &done)) {
             ss << Tcl_GetString(key) << ": " << Tcl_GetString(value) << "\r\n";
         }
         Tcl_DictObjDone(&search);
@@ -85,22 +73,18 @@ struct HttpServer
         mg_http_reply(ctx.conn, code, ss.str().c_str(), Tcl_GetString(body));
     }
 
-    void reply_chunk_begin(unsigned long connId)
-    {
+    void reply_chunk_begin(unsigned long connId) {
         auto find = connections.find(connId);
-        if (find == connections.end())
-        {
+        if (find == connections.end()) {
             return;
         }
         ReqContext &ctx = find->second;
         mg_printf(ctx.conn, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     }
 
-    void reply_chunk(unsigned long connId, Tcl_Obj *chunk)
-    {
+    void reply_chunk(unsigned long connId, Tcl_Obj *chunk) {
         auto find = connections.find(connId);
-        if (find == connections.end())
-        {
+        if (find == connections.end()) {
             return;
         }
         ReqContext &ctx = find->second;
@@ -110,22 +94,18 @@ struct HttpServer
         mg_http_write_chunk(ctx.conn, str, strLen);
     }
 
-    void reply_chunk_end(unsigned long connId)
-    {
+    void reply_chunk_end(unsigned long connId) {
         auto find = connections.find(connId);
-        if (find == connections.end())
-        {
+        if (find == connections.end()) {
             return;
         }
         ReqContext &ctx = find->second;
         mg_http_printf_chunk(ctx.conn, "");
     }
 
-    void reply_file(unsigned long connId, const std::string &file)
-    {
+    void reply_file(unsigned long connId, const std::string &file) {
         auto find = connections.find(connId);
-        if (find == connections.end())
-        {
+        if (find == connections.end()) {
             return;
         }
         ReqContext &ctx = find->second;
@@ -134,25 +114,20 @@ struct HttpServer
         mg_http_serve_file(ctx.conn, ctx.hm, file.c_str(), &opts);
     }
 
-    static void handle_once(ClientData clientData)
-    {
+    static void handle_once(ClientData clientData) {
         HttpServer *self = (HttpServer *)clientData;
         mg_mgr_poll(&self->mgr, 10);
         Tcl_DoWhenIdle(&HttpServer::handle_once, self);
     }
 
-    void start()
-    {
+    void start() {
         Tcl_DoWhenIdle(&HttpServer::handle_once, this);
     }
 
-    static void event_handler(mg_connection *conn, int ev, void *ev_data, void *fn_data)
-    {
+    static void event_handler(mg_connection *conn, int ev, void *ev_data, void *fn_data) {
         HttpServer *self = (HttpServer *)fn_data;
-        if (ev == MG_EV_HTTP_MSG)
-        {
-            if (!self->handler)
-            {
+        if (ev == MG_EV_HTTP_MSG) {
+            if (!self->handler) {
                 mg_http_reply(conn, 404, nullptr, "");
                 return;
             }
@@ -184,11 +159,9 @@ struct HttpServer
                 callback[6] = Tcl_NewStringObj(hm->query.ptr, hm->query.len);
                 // headers
                 Tcl_Obj *headers = Tcl_NewDictObj();
-                for (int i = 0; i < MG_MAX_HTTP_HEADERS; ++i)
-                {
+                for (int i = 0; i < MG_MAX_HTTP_HEADERS; ++i) {
                     const mg_http_header &h = hm->headers[i];
-                    if (h.name.len == 0 || h.name.ptr == nullptr || h.value.len == 0 || h.value.ptr == nullptr)
-                    {
+                    if (h.name.len == 0 || h.name.ptr == nullptr || h.value.len == 0 || h.value.ptr == nullptr) {
                         break;
                     }
 
@@ -200,157 +173,119 @@ struct HttpServer
                 // body
                 callback[8] = Tcl_NewStringObj(hm->body.ptr, hm->body.len);
 
-                for (int i = 0; i < 9; ++i)
-                {
+                for (int i = 0; i < 9; ++i) {
                     Tcl_IncrRefCount(callback[i]);
                 }
 
                 result = Tcl_EvalObjv(self->interp, 9, callback, 0);
-                for (int i = 0; i < 9; ++i)
-                {
+                for (int i = 0; i < 9; ++i) {
                     Tcl_DecrRefCount(callback[i]);
                 }
             }
-            if (result != TCL_OK)
-            {
+            if (result != TCL_OK) {
                 mg_http_reply(conn, 500, nullptr, "");
                 return;
             }
-        }
-        else if (ev == MG_EV_CLOSE)
-        {
+        } else if (ev == MG_EV_CLOSE) {
             self->connections.erase(conn->id);
         }
     }
 };
 
-static inline std::string tcl_obj_to_string(Tcl_Obj *obj)
-{
+static inline std::string tcl_obj_to_string(Tcl_Obj *obj) {
     const char *str = nullptr;
     int strLen;
     str = Tcl_GetStringFromObj(obj, &strLen);
     return std::string(str, strLen);
 }
 
-static int server_command(ClientData clientData, Tcl_Interp *interp, int objc, struct Tcl_Obj *const *objv)
-{
-    if (objc < 2)
-    {
+static int server_command(ClientData clientData, Tcl_Interp *interp, int objc, struct Tcl_Obj *const *objv) {
+    if (objc < 2) {
         Tcl_WrongNumArgs(interp, 1, objv, "listen | set_handler | start | reply | reply_chunk");
         return TCL_ERROR;
     }
     HttpServer *server = (HttpServer *)clientData;
     std::string command = tcl_obj_to_string(objv[1]);
 
-    if (command == "listen")
-    {
-        if (objc < 3)
-        {
+    if (command == "listen") {
+        if (objc < 3) {
             Tcl_WrongNumArgs(interp, 2, objv, "port");
             return TCL_ERROR;
         }
         int port;
-        if (Tcl_GetIntFromObj(interp, objv[2], &port) != TCL_OK)
-        {
+        if (Tcl_GetIntFromObj(interp, objv[2], &port) != TCL_OK) {
             Tcl_AddErrorInfo(interp, "port is a number");
             return TCL_ERROR;
         }
         mg_connection *conn = server->listen(port);
-        if (conn == nullptr)
-        {
+        if (conn == nullptr) {
             Tcl_AddErrorInfo(interp, "listen error");
             return TCL_ERROR;
         }
         return TCL_OK;
-    }
-    else if (command == "set_handler")
-    {
-        if (objc < 3)
-        {
+    } else if (command == "set_handler") {
+        if (objc < 3) {
             Tcl_WrongNumArgs(interp, 2, objv, "fun");
             return TCL_ERROR;
         }
         server->set_handler(objv[2]);
         return TCL_OK;
-    }
-    else if (command == "start")
-    {
+    } else if (command == "start") {
         server->start();
         std::cout << "start()" << std::endl;
         return TCL_OK;
-    }
-    else if (command == "reply")
-    {
-        if (objc < 6)
-        {
+    } else if (command == "reply") {
+        if (objc < 6) {
             Tcl_WrongNumArgs(interp, 2, objv, "id code headers body");
             return TCL_ERROR;
         }
         long connId;
-        if (Tcl_GetLongFromObj(interp, objv[2], &connId) != TCL_OK)
-        {
+        if (Tcl_GetLongFromObj(interp, objv[2], &connId) != TCL_OK) {
             Tcl_AppendResult(interp, "id is a number");
             return TCL_ERROR;
         }
         int code;
-        if (Tcl_GetIntFromObj(interp, objv[3], &code) != TCL_OK)
-        {
+        if (Tcl_GetIntFromObj(interp, objv[3], &code) != TCL_OK) {
             Tcl_AppendResult(interp, "code is a number");
             return TCL_ERROR;
         }
         server->reply(connId, code, objv[4], objv[5]);
         return TCL_OK;
-    }
-    else if (command == "reply_chunk")
-    {
-        if (objc < 4)
-        {
+    } else if (command == "reply_chunk") {
+        if (objc < 4) {
             Tcl_WrongNumArgs(interp, 2, objv, "id begin code | id send chunk | id end");
             return TCL_ERROR;
         }
         long connId;
-        if (Tcl_GetLongFromObj(interp, objv[2], &connId) != TCL_OK)
-        {
+        if (Tcl_GetLongFromObj(interp, objv[2], &connId) != TCL_OK) {
             Tcl_AppendResult(interp, "id is a number");
             return TCL_ERROR;
         }
         std::string op = tcl_obj_to_string(objv[3]);
-        if (op == "begin")
-        {
+        if (op == "begin") {
             server->reply_chunk_begin(connId);
             return TCL_OK;
-        }
-        else if (op == "send")
-        {
-            if (objc < 5)
-            {
+        } else if (op == "send") {
+            if (objc < 5) {
                 Tcl_WrongNumArgs(interp, 4, objv, "chunk");
                 return TCL_ERROR;
             }
             server->reply_chunk(connId, objv[4]);
             return TCL_OK;
-        }
-        else if (op == "end")
-        {
+        } else if (op == "end") {
             server->reply_chunk_end(connId);
             return TCL_OK;
-        }
-        else
-        {
+        } else {
             Tcl_AppendResult(interp, "begin | send | end");
             return TCL_ERROR;
         }
-    }
-    else if (command == "reply_file")
-    {
-        if (objc < 4)
-        {
+    } else if (command == "reply_file") {
+        if (objc < 4) {
             Tcl_WrongNumArgs(interp, 2, objv, "id file_path");
             return TCL_ERROR;
         }
         long connId;
-        if (Tcl_GetLongFromObj(interp, objv[2], &connId) != TCL_OK)
-        {
+        if (Tcl_GetLongFromObj(interp, objv[2], &connId) != TCL_OK) {
             Tcl_AppendResult(interp, "id is a number");
             return TCL_ERROR;
         }
@@ -363,15 +298,13 @@ static int server_command(ClientData clientData, Tcl_Interp *interp, int objc, s
     return TCL_ERROR;
 }
 
-static void destroy_server(ClientData clientData)
-{
+static void destroy_server(ClientData clientData) {
     HttpServer *server = (HttpServer *)clientData;
     delete server;
     std::cout << "destroy_server()" << std::endl;
 }
 
-static int create_server(ClientData clientData, Tcl_Interp *interp, int objc, struct Tcl_Obj *const *objv)
-{
+static int create_server(ClientData clientData, Tcl_Interp *interp, int objc, struct Tcl_Obj *const *objv) {
     static int seq = 0;
     HttpServer *server = new HttpServer(interp);
     server->name = "::http::server" + std::to_string(++seq);
@@ -380,10 +313,8 @@ static int create_server(ClientData clientData, Tcl_Interp *interp, int objc, st
     return TCL_OK;
 }
 
-int Tclhttp_Init(Tcl_Interp *interp)
-{
-    if (Tcl_InitStubs(interp, "8.6", 0) == nullptr)
-    {
+int Tclhttp_Init(Tcl_Interp *interp) {
+    if (Tcl_InitStubs(interp, "8.6", 0) == nullptr) {
         return TCL_ERROR;
     }
 
