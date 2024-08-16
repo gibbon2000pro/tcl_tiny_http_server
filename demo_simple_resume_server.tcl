@@ -25,8 +25,10 @@ $server set_handler {{server conn method uri query headers body} {
 
     if [string match -nocase "/gibbon" $uri] {
         $server reply_file $conn {resume/贺渊凌1.pdf}
-    } elseif [string match -nocase "/gibbon" $uri] {
+        return
+    } elseif [string match -nocase "/rita" $uri] {
         $server reply_file $conn {resume/阳娟个人简历1.16.pdf}
+        return
     }
     
     $server reply $conn 404 {} {WTF???}
