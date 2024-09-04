@@ -132,7 +132,7 @@ struct HttpServer {
     static void event_handler(mg_connection *conn, int ev, void *ev_data, void *fn_data) {
         HttpServer *self = (HttpServer *)fn_data;
         auto &logger = self->logger;
-        logger->debug("event_handler begin. conn_id->{}", conn->id);
+        // logger->debug("event_handler begin. conn_id->{} ev->{}", conn->id, ev);
         if (ev == MG_EV_HTTP_MSG) {
             if (!self->handler) {
                 mg_http_reply(conn, 404, nullptr, "");
@@ -155,14 +155,22 @@ struct HttpServer {
                 callback[1] = self->handler;
                 // server_name
                 callback[2] = Tcl_NewStringObj(self->name.c_str(), -1);
+                logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} server_name->{}",
+                              conn->id, self->name);
                 // conn_id
                 callback[3] = Tcl_NewIntObj(conn->id);
                 // method
                 callback[4] = Tcl_NewStringObj(hm->method.ptr, hm->method.len);
+                logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} method->{}",
+                              conn->id, std::string(hm->method.ptr, hm->method.len));
                 // uri
                 callback[5] = Tcl_NewStringObj(hm->uri.ptr, hm->uri.len);
+                logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} uri->{}",
+                              conn->id, std::string(hm->uri.ptr, hm->uri.len));
                 // query
                 callback[6] = Tcl_NewStringObj(hm->query.ptr, hm->query.len);
+                logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} query->{}",
+                              conn->id, std::string(hm->query.ptr, hm->query.len));
                 // headers
                 Tcl_Obj *headers = Tcl_NewDictObj();
                 std::stringstream ss;
@@ -182,12 +190,15 @@ struct HttpServer {
                 // body
                 callback[8] = Tcl_NewStringObj(hm->body.ptr, hm->body.len);
 
-                logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} server_name->{} method->{} uri->{} query->{} headers->{}",
-                              conn->id, self->name,
-                              std::string(hm->method.ptr, hm->method.len),
-                              std::string(hm->uri.ptr, hm->uri.len),
-                              std::string(hm->query.ptr, hm->query.len),
-                              ss.str());
+                logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} headers->{}",
+                              conn->id, ss.str());
+
+                // logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} server_name->{} method->{} uri->{} query->{} headers->{}",
+                //               conn->id, self->name,
+                //               std::string(hm->method.ptr, hm->method.len),
+                //               std::string(hm->uri.ptr, hm->uri.len),
+                //               std::string(hm->query.ptr, hm->query.len),
+                //               ss.str());
 
                 for (int i = 0; i < 9; ++i) {
                     Tcl_IncrRefCount(callback[i]);
@@ -206,7 +217,8 @@ struct HttpServer {
             self->connections.erase(conn->id);
             logger->debug("event_handler MG_EV_CLOSE. conn_id->{}", conn->id);
         }
-        logger->debug("event_handler end. conn_id->{}", conn->id);
+        // logger->debug("event_handler end. conn_id->{}", conn->id);
+        logger->flush();
     }
 };
 
