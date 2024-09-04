@@ -1,6 +1,9 @@
 project(tcl_http)
 
 set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
+message(WARNING "CMAKE_CXX_FLAGS_DEBUG : ${CMAKE_CXX_FLAGS_DEBUG}")
+
 
 find_package(spdlog REQUIRED)
 
