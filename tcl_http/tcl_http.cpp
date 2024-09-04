@@ -5,6 +5,8 @@
 #include <unordered_map>
 
 #include "mongoose.h"
+#include "spdlog/sinks/basic_file_sink.h"
+#include "spdlog/spdlog.h"
 
 extern "C" {
 #include <tcl8.6/tcl.h>
@@ -22,11 +24,14 @@ struct HttpServer {
     Tcl_Interp *interp;
     Tcl_Obj *handler;
     std::unordered_map<unsigned long, ReqContext> connections;
+    std::shared_ptr<spdlog::logger> logger;
 
     HttpServer(Tcl_Interp *interp_)
         : interp(interp_),
           handler(nullptr) {
         mg_mgr_init(&mgr);
+        spdlog::set_level(spdlog::level::debug);
+        logger = spdlog::basic_logger_mt("HttpServer", "http_server.log", true);
     }
 
     ~HttpServer() {
@@ -126,6 +131,8 @@ struct HttpServer {
 
     static void event_handler(mg_connection *conn, int ev, void *ev_data, void *fn_data) {
         HttpServer *self = (HttpServer *)fn_data;
+        auto &logger = self->logger;
+        logger->debug("event_handler begin. conn_id->{}", conn->id);
         if (ev == MG_EV_HTTP_MSG) {
             if (!self->handler) {
                 mg_http_reply(conn, 404, nullptr, "");
@@ -146,7 +153,6 @@ struct HttpServer {
                 callback[0] = Tcl_NewStringObj("apply", -1);
                 // Tcl_IncrRefCount(callback[0]);
                 callback[1] = self->handler;
-
                 // server_name
                 callback[2] = Tcl_NewStringObj(self->name.c_str(), -1);
                 // conn_id
@@ -159,6 +165,7 @@ struct HttpServer {
                 callback[6] = Tcl_NewStringObj(hm->query.ptr, hm->query.len);
                 // headers
                 Tcl_Obj *headers = Tcl_NewDictObj();
+                std::stringstream ss;
                 for (int i = 0; i < MG_MAX_HTTP_HEADERS; ++i) {
                     const mg_http_header &h = hm->headers[i];
                     if (h.name.len == 0 || h.name.ptr == nullptr || h.value.len == 0 || h.value.ptr == nullptr) {
@@ -166,12 +173,21 @@ struct HttpServer {
                     }
 
                     Tcl_Obj *key = Tcl_NewStringObj(h.name.ptr, h.name.len);
+                    ss << std::string(h.name.ptr, h.name.len) << ":";
                     Tcl_Obj *value = Tcl_NewStringObj(h.value.ptr, h.value.len);
+                    ss << std::string(h.value.ptr, h.value.len) << ";";
                     Tcl_DictObjPut(self->interp, headers, key, value);
                 }
                 callback[7] = headers;
                 // body
                 callback[8] = Tcl_NewStringObj(hm->body.ptr, hm->body.len);
+
+                logger->debug("event_handler MG_EV_HTTP_MSG. conn_id->{} server_name->{} method->{} uri->{} query->{} headers->{}",
+                              conn->id, self->name,
+                              std::string(hm->method.ptr, hm->method.len),
+                              std::string(hm->uri.ptr, hm->uri.len),
+                              std::string(hm->query.ptr, hm->query.len),
+                              ss.str());
 
                 for (int i = 0; i < 9; ++i) {
                     Tcl_IncrRefCount(callback[i]);
@@ -188,7 +204,9 @@ struct HttpServer {
             }
         } else if (ev == MG_EV_CLOSE) {
             self->connections.erase(conn->id);
+            logger->debug("event_handler MG_EV_CLOSE. conn_id->{}", conn->id);
         }
+        logger->debug("event_handler end. conn_id->{}", conn->id);
     }
 };
 
