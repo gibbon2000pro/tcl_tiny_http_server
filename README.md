@@ -8,3 +8,8 @@
 2. 方便投递个人简历。（只需要发送链接 http://47.108.224.68:8080/gibbon 即可）
 
 3. 解密挑战，“Rita同学的属相是什么？”
+
+
+```bash
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6 ./demo_resume_server.tcl
+```

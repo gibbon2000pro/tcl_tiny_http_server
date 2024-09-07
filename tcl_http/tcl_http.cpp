@@ -16,6 +16,11 @@ extern DLLEXPORT int Tclhttp_Init(Tcl_Interp *interp);
 struct ReqContext {
     mg_connection *conn;
     mg_http_message *hm;
+    uint64_t timeout;
+
+    ReqContext() {
+        timeout = mg_millis() + 60000;
+    }
 };
 
 struct HttpServer {
@@ -32,6 +37,8 @@ struct HttpServer {
         mg_mgr_init(&mgr);
         spdlog::set_level(spdlog::level::debug);
         logger = spdlog::basic_logger_mt("HttpServer", "http_server.log", true);
+        mg_timer_add(&mgr, 30000, MG_TIMER_REPEAT,
+                     &HttpServer::check_timeout, this);
     }
 
     ~HttpServer() {
@@ -129,10 +136,36 @@ struct HttpServer {
         Tcl_DoWhenIdle(&HttpServer::handle_once, this);
     }
 
+    static void check_timeout(void *fn_data) {
+        HttpServer *self = (HttpServer *)fn_data;
+        uint64_t now = mg_millis();
+        int count = 0;
+        for (auto iter = self->connections.begin(); iter != self->connections.end();) {
+            if (iter->second.timeout >= now) {
+                mg_http_reply(iter->second.conn, 504, nullptr, "");
+                iter = self->connections.erase(iter);
+            } else {
+                ++iter;
+                ++count;
+            }
+        }
+        self->logger->debug("check_timeout() connections.size->{}", count);
+        self->logger->flush();
+    }
+
     static void event_handler(mg_connection *conn, int ev, void *ev_data, void *fn_data) {
         HttpServer *self = (HttpServer *)fn_data;
         auto &logger = self->logger;
-        // logger->debug("event_handler begin. conn_id->{} ev->{}", conn->id, ev);
+        // logger->debug("event_handler begin. conn_id->{} ev->{} conn_is_closing->{} conn_is_readable->{} conn_is_writable->{}",
+        //               conn->id, ev, bool(conn->is_closing), bool(conn->is_readable), bool(conn->is_writable));
+
+        if (ev == MG_EV_CLOSE) {
+            self->connections.erase(conn->id);
+            logger->debug("event_handler MG_EV_CLOSE. conn_id->{}", conn->id);
+            logger->flush();
+            return;
+        }
+
         if (ev == MG_EV_HTTP_MSG) {
             if (!self->handler) {
                 mg_http_reply(conn, 404, nullptr, "");
@@ -211,14 +244,11 @@ struct HttpServer {
             }
             if (result != TCL_OK) {
                 mg_http_reply(conn, 500, nullptr, "");
-                return;
             }
-        } else if (ev == MG_EV_CLOSE) {
-            self->connections.erase(conn->id);
-            logger->debug("event_handler MG_EV_CLOSE. conn_id->{}", conn->id);
+            logger->flush();
+            return;
         }
         // logger->debug("event_handler end. conn_id->{}", conn->id);
-        logger->flush();
     }
 };
 
