@@ -13,3 +13,10 @@
 ```bash
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6 ./demo_resume_server.tcl >record &2>1
 ```
+
+```bash
+fallocate -l 8G ./swapfile
+chmod 0600 ./swapfile
+mkswap ./swapfile
+swapon ./swapfile
+```
