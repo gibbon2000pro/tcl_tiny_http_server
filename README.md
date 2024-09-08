@@ -11,5 +11,5 @@
 
 
 ```bash
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6 ./demo_resume_server.tcl
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6 ./demo_resume_server.tcl >record &2>1
 ```
