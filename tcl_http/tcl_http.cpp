@@ -18,6 +18,28 @@ struct ReqContext {
     mg_http_message *hm = nullptr;
 };
 
+static inline std::string mg_addr_to_string(const mg_addr &addr) {
+    std::stringstream ss;
+    if (addr.is_ip6) {
+        for (size_t i = 0; i < sizeof(addr.ip6); ++i) {
+            if (i > 0) {
+                ss << ".";
+            }
+            ss << std::to_string(addr.ip6[i]);
+        }
+    } else {
+        const uint8_t *start = reinterpret_cast<const uint8_t *>(&addr.ip);
+        for (uint32_t i = 0; i < 4; ++i) {
+            if (i > 0) {
+                ss << ".";
+            }
+            ss << std::to_string(start[i]);
+        }
+    }
+    ss << ":" << addr.port;
+    return ss.str();
+}
+
 struct HttpServer {
     std::string name;
     mg_mgr mgr;
@@ -135,6 +157,13 @@ struct HttpServer {
         HttpServer *self = (HttpServer *)fn_data;
         // uint64_t now = mg_millis();
         self->logger->debug("interval_check() connections.size->{}", self->connections.size());
+        for (auto &iter : self->connections) {
+            auto &conn = *(iter.second.conn);
+            self->logger->debug("interval_check() conn_id->{} loc->{} rem->{}",
+                                conn.id,
+                                mg_addr_to_string(conn.loc),
+                                mg_addr_to_string(conn.rem));
+        }
         self->logger->flush();
     }
 
@@ -144,7 +173,7 @@ struct HttpServer {
         // logger->debug("event_handler begin. conn_id->{} ev->{} conn_is_closing->{} conn_is_readable->{} conn_is_writable->{}",
         //               conn->id, ev, bool(conn->is_closing), bool(conn->is_readable), bool(conn->is_writable));
 
-        if(ev == MG_EV_OPEN) {
+        if (ev == MG_EV_OPEN) {
             auto &ctx = self->connections[conn->id];
             ctx.conn = conn;
             logger->debug("event_handler MG_EV_OPEN. conn_id->{}", conn->id);

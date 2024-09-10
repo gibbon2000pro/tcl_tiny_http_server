@@ -4,7 +4,7 @@ source ./tcl_http_server.tcl
 
 set server [HttpServer new 8080]
 $server set_handler "/gibbon" {{conn method uri query headers body} {
-    reply_file $conn {resume/贺渊凌2.pdf}
+    reply_file $conn {resume/贺渊凌3.pdf}
 }} {} 1 3 30
 
 $server set_handler "/rita" {{conn method uri query headers body} {
